@@ -1,0 +1,5 @@
+{
+  "name": "Kalkulator Penghasilan Akun Digital",
+  "description": "Aplikasi web untuk menghitung dan melacak penghasilan dari penjualan akun digital. Pengguna dapat memasukkan harga beli, harga jual, dan kuantitas untuk setiap transaksi dan melihat ringkasan total keuntungan.",
+  "requestFramePermissions": []
+}
