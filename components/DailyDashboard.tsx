@@ -1,47 +1,26 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Sale, Product, FilterPreset } from '../types';
 import Summary from './Summary';
 import SalesList from './SalesList';
 import SalesForm from './SalesForm';
 import DateFilter from './DateFilter';
 import ProductManagementModal from './ProductManagementModal';
-import SalesChart from './SalesChart'; // New import
+import SalesChart from './SalesChart';
+import useLocalStorage from '../hooks/useLocalStorage'; // New import
+import SaveStatusIndicator from './SaveStatusIndicator'; // New import
 
 const DailyDashboard: React.FC = () => {
-  const [products, setProducts] = useState<Product[]>(() => {
-    try {
-      const savedProducts = localStorage.getItem('products');
-      return savedProducts ? JSON.parse(savedProducts) : [
-        { id: '1', name: 'Netflix Premium', purchasePrice: 150000, sellingPrice: 165000 },
-        { id: '2', name: 'Spotify Family', purchasePrice: 70000, sellingPrice: 85000 },
-      ];
-    } catch (error) {
-      console.error("Gagal memuat produk dari localStorage", error);
-      return [];
-    }
-  });
+  const initialProducts: Product[] = [
+    { id: '1', name: 'Netflix Premium', purchasePrice: 150000, sellingPrice: 165000 },
+    { id: '2', name: 'Spotify Family', purchasePrice: 70000, sellingPrice: 85000 },
+  ];
 
-  const [sales, setSales] = useState<Sale[]>(() => {
-    try {
-      const savedSales = localStorage.getItem('sales');
-      return savedSales ? JSON.parse(savedSales) : [];
-    } catch (error) {
-      console.error("Gagal memuat penjualan dari localStorage", error);
-      return [];
-    }
-  });
+  const [products, setProducts, productsSaveStatus] = useLocalStorage<Product[]>('products', initialProducts);
+  const [sales, setSales, salesSaveStatus] = useLocalStorage<Sale[]>('sales', []);
   
   const [activeFilter, setActiveFilter] = useState<FilterPreset>('today');
   const [customDateRange, setCustomDateRange] = useState<{ start: string, end: string }>({ start: '', end: '' });
   const [isModalOpen, setIsModalOpen] = useState(false);
-
-  useEffect(() => {
-    localStorage.setItem('products', JSON.stringify(products));
-  }, [products]);
-
-  useEffect(() => {
-    localStorage.setItem('sales', JSON.stringify(sales));
-  }, [sales]);
 
   const handleAddSale = (newSale: Omit<Sale, 'id'>) => {
     setSales(prevSales => [...prevSales, { ...newSale, id: Date.now().toString() }]);
@@ -63,6 +42,8 @@ const DailyDashboard: React.FC = () => {
     setCustomDateRange(range);
     setActiveFilter('custom');
   };
+  
+  const combinedSaveStatus = productsSaveStatus === 'saving' || salesSaveStatus === 'saving' ? 'saving' : (productsSaveStatus === 'saved' || salesSaveStatus === 'saved' ? 'saved' : 'idle');
 
   const { filteredSales, summaryTitle } = useMemo(() => {
     const now = new Date();
@@ -74,14 +55,17 @@ const DailyDashboard: React.FC = () => {
     switch (activeFilter) {
       case 'today':
         startDate = today;
+        endDate.setHours(23, 59, 59, 999);
         title = 'Ringkasan Hari Ini';
         break;
       case 'last7':
         startDate.setDate(today.getDate() - 6);
+        endDate.setHours(23, 59, 59, 999);
         title = 'Ringkasan 7 Hari Terakhir';
         break;
       case 'last30':
         startDate.setDate(today.getDate() - 29);
+        endDate.setHours(23, 59, 59, 999);
         title = 'Ringkasan 30 Hari Terakhir';
         break;
       case 'custom':
@@ -89,13 +73,12 @@ const DailyDashboard: React.FC = () => {
           const start = new Date(customDateRange.start);
           const end = new Date(customDateRange.end);
           
-          // Adjust for timezone to get correct local date
           const tzOffsetStart = start.getTimezoneOffset() * 60000;
           const tzOffsetEnd = end.getTimezoneOffset() * 60000;
           
           startDate = new Date(start.getTime() + tzOffsetStart);
           endDate = new Date(end.getTime() + tzOffsetEnd);
-          endDate.setHours(23, 59, 59, 999); // Include the whole end day
+          endDate.setHours(23, 59, 59, 999);
 
           const startLocale = startDate.toLocaleDateString('id-ID');
           const endLocale = endDate.toLocaleDateString('id-ID');
@@ -128,7 +111,7 @@ const DailyDashboard: React.FC = () => {
     return Object.entries(groupedSales).map(([date, values]) => ({
       date,
       ...values,
-    }));
+    })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [filteredSales]);
 
 
@@ -140,12 +123,15 @@ const DailyDashboard: React.FC = () => {
           onFilterChange={setActiveFilter}
           onCustomFilterApply={handleCustomFilterApply}
         />
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors"
-        >
-          Manajemen Produk
-        </button>
+        <div className="flex items-center gap-4">
+            <SaveStatusIndicator status={combinedSaveStatus} />
+            <button 
+            onClick={() => setIsModalOpen(true)}
+            className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors"
+            >
+            Manajemen Produk
+            </button>
+        </div>
       </div>
       
       <SalesChart data={chartData} />
